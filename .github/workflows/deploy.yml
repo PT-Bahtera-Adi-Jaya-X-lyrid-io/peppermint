@@ -1,0 +1,58 @@
+name: Build peppermint Image and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      docker:
+        image: docker:20.10.8-dind
+        options: --privileged
+        ports:
+          - 2375:2375
+        env:
+          DOCKER_TLS_CERTDIR: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in, Build, and Push Docker image
+        run: |
+          docker login harbor.apsoutheast1.lyr.id -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker build -t harbor.apsoutheast1.lyr.id/bahtera/peppermint:${{ github.sha }} .
+          docker push harbor.apsoutheast1.lyr.id/bahtera/peppermint:${{ github.sha }}
+          echo "Docker image push Success"
+
+      - name: Install or Update AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Kubectl Rollout Deployment
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+          sudo mkdir /root/.kube
+          sudo touch /root/.kube/config
+          sudo aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY }} 
+          sudo aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_KEY }}  
+          sudo aws configure set region ${{ secrets.AWS_REGION }}
+          sudo aws configure set default.s3.signature_version s3v4
+          sudo aws --endpoint-url https://storage.bahteraadijaya.lyr.id s3 cp s3://vault/bahtera-baremetal.txt /root
+          sudo ls /root
+          sudo cp /root/bahtera-baremetal.txt /root/.kube/config
+          sudo kubectl get nodes
+          sudo kubectl set image deployment/peppermint peppermint=harbor.apsoutheast1.lyr.id/bahtera/peppermint:${{ github.sha }} --namespace=lyrid-dc371009-a152-4763-9810-e8edfebb2a88
