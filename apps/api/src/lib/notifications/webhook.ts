@@ -1,3 +1,4 @@
+    //@ts-nocheck
 import axios from "axios";
 
 function getPriorityColor(priority: string): number {
@@ -17,6 +18,7 @@ export async function sendWebhookNotification(webhook: any, message: any) {
   if (!webhook.active) return;
 
   const url = webhook.url;
+
 
   if (url.includes("discord.com")) {
     const discordMessage = {
@@ -91,7 +93,48 @@ export async function sendWebhookNotification(webhook: any, message: any) {
       }
       throw error;
     }
-  } else {
+  } else if(url.includes("bahteraadijaya365.webhook.office.com")) {
+    const teams_body = {
+      "@type": "MessageCard",
+      "@context": "https://schema.org/extensions",
+      "themeColor": getPriorityColor(message.priority),
+      "title": message.title,
+      "sections": [
+        {
+          "activityTitle": "Issue ID: " + message.id,
+          "activitySubtitle": "Ticketing Bahtera Adi Jaya",
+          "activityImage": "https://avatars.githubusercontent.com/u/76014454?s=200&v=4",
+          "markdown": true,
+          "facts": [
+            {
+              "name": "Title",
+              "value": message.title
+            },
+            {
+              "name": "Priority Level",
+              "value": message.priority
+            },
+            {
+              "name": "Contact Email",
+              "value": message.email ? message.email : "No email provided"
+            },
+            {
+              "name": "Created By",
+              "value": message.createdBy.name
+            },
+            {
+              "name": "Assigned To",
+              "value": message.assignedTo ? message.assignedTo.name : "Unassigned"
+            },
+            {
+              "name": "Client",
+              "value": message.client ? message.client.name : "No client assigned"
+            },]
+        }
+      ]
+    };
+  }
+  else {
     try {
       await axios.post(url, {
         data: message,
